@@ -15,7 +15,7 @@
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
 # OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABIL-
 # ITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-# SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
 # WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
@@ -25,8 +25,8 @@ from datetime import datetime, timedelta
 from boto.utils import parse_ts
 import boto
 
-class ResultProcessor(object):
-
+class ResultProcessor:
+    
     LogFileName = 'log.csv'
 
     def __init__(self, batch_name, sd, mimetype_files=None):
@@ -57,7 +57,8 @@ class ResultProcessor(object):
             self.latest_time = end_time
 
     def log_message(self, msg, path):
-        keys = sorted(msg.keys())
+        keys = msg.keys()
+        keys.sort()
         if not self.log_fp:
             self.log_fp = open(os.path.join(path, self.LogFileName), 'a')
             line = ','.join(keys)
@@ -75,7 +76,7 @@ class ResultProcessor(object):
         self.log_message(record, path)
         self.calculate_stats(record)
         outputs = record['OutputKey'].split(',')
-        if 'OutputBucket' in record:
+        if record.has_key('OutputBucket'):
             bucket = boto.lookup('s3', record['OutputBucket'])
         else:
             bucket = boto.lookup('s3', record['Bucket'])
@@ -84,14 +85,14 @@ class ResultProcessor(object):
                 key_name = output.split(';')[0]
                 key = bucket.lookup(key_name)
                 file_name = os.path.join(path, key_name)
-                print 'retrieving file: %s to %s' % (key_name, file_name)
+                print( 'retrieving file: %s to %s' % (key_name, file_name) )
                 key.get_contents_to_filename(file_name)
             self.num_files += 1
 
     def get_results_from_queue(self, path, get_file=True, delete_msg=True):
         m = self.queue.read()
         while m:
-            if 'Batch' in m and m['Batch'] == self.batch:
+            if m.has_key('Batch') and m['Batch'] == self.batch:
                 self.process_record(m, path, get_file)
                 if delete_msg:
                     self.queue.delete_message(m)
@@ -105,10 +106,10 @@ class ResultProcessor(object):
     def get_results_from_bucket(self, path):
         bucket = self.sd.get_obj('output_bucket')
         if bucket:
-            print 'No output queue or domain, just retrieving files from output_bucket'
+            print( 'No output queue or domain, just retrieving files from output_bucket' )
             for key in bucket:
                 file_name = os.path.join(path, key)
-                print 'retrieving file: %s to %s' % (key, file_name)
+                print( 'retrieving file: %s to %s' % (key, file_name) )
                 key.get_contents_to_filename(file_name)
                 self.num_files + 1
 
@@ -123,14 +124,14 @@ class ResultProcessor(object):
             self.get_results_from_bucket(path)
         if self.log_fp:
             self.log_fp.close()
-        print '%d results successfully retrieved.' % self.num_files
+        print( '%d results successfully retrieved.' % self.num_files )
         if self.num_files > 0:
             self.avg_time = float(self.total_time)/self.num_files
-            print 'Minimum Processing Time: %d' % self.min_time.seconds
-            print 'Maximum Processing Time: %d' % self.max_time.seconds
-            print 'Average Processing Time: %f' % self.avg_time
+            print( 'Minimum Processing Time: %d' % self.min_time.seconds )
+            print( 'Maximum Processing Time: %d' % self.max_time.seconds )
+            print( 'Average Processing Time: %f' % self.avg_time )
             self.elapsed_time = self.latest_time-self.earliest_time
-            print 'Elapsed Time: %d' % self.elapsed_time.seconds
+            print( 'Elapsed Time: %d' % self.elapsed_time.seconds )
             tput = 1.0 / ((self.elapsed_time.seconds/60.0) / self.num_files)
-            print 'Throughput: %f transactions / minute' % tput
-
+            print( 'Throughput: %f transactions / minute' % tput )
+        

@@ -1,8 +1,5 @@
-# Copyright (c) 2006-2012 Mitch Garnaat http://garnaat.org/
+# Copyright (c) 2006-2011 Mitch Garnaat http://garnaat.org/
 # Copyright (c) 2010-2011, Eucalyptus Systems, Inc.
-# Copyright (c) 2011, Nexenta Systems Inc.
-# Copyright (c) 2012 Amazon.com, Inc. or its affiliates.
-# Copyright (c) 2010, Google, Inc.
 # All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
@@ -24,41 +21,22 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
 #
+import boto
 from boto.pyami.config import Config, BotoConfigLocations
 from boto.storage_uri import BucketStorageUri, FileStorageUri
 import boto.plugin
-import datetime
 import os
-import platform
 import re
 import sys
 import logging
 import logging.config
-import urlparse
 from boto.exception import InvalidUriError
 
-__version__ = '2.28.0'
+__version__ = '2.0b5'
 Version = __version__  # for backware compatibility
 
-# http://bugs.python.org/issue7980
-datetime.datetime.strptime('', '')
-
-UserAgent = 'Boto/%s Python/%s %s/%s' % (
-    __version__,
-    platform.python_version(),
-    platform.system(),
-    platform.release()
-)
+UserAgent = 'Boto/%s (%s)' % (__version__, sys.platform)
 config = Config()
-
-# Regex to disallow buckets violating charset or not [3..255] chars total.
-BUCKET_NAME_RE = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9\._-]{1,253}[a-zA-Z0-9]$')
-# Regex to disallow buckets with individual DNS labels longer than 63.
-TOO_LONG_DNS_NAME_COMP = re.compile(r'[-_a-z0-9]{64}')
-GENERATION_RE = re.compile(r'(?P<versionless_uri_str>.+)'
-                           r'#(?P<generation>[0-9]+)$')
-VERSION_RE = re.compile('(?P<versionless_uri_str>.+)#(?P<version_id>.+)$')
-ENDPOINTS_PATH = os.path.join(os.path.dirname(__file__), 'endpoints.json')
 
 
 def init_logging():
@@ -70,13 +48,12 @@ def init_logging():
 
 
 class NullHandler(logging.Handler):
+
     def emit(self, record):
         pass
 
 log = logging.getLogger('boto')
-perflog = logging.getLogger('boto.perf')
 log.addHandler(NullHandler())
-perflog.addHandler(NullHandler())
 init_logging()
 
 # convenience function to set logging to a particular file
@@ -143,10 +120,10 @@ def connect_s3(aws_access_key_id=None, aws_secret_access_key=None, **kwargs):
 def connect_gs(gs_access_key_id=None, gs_secret_access_key=None, **kwargs):
     """
     @type gs_access_key_id: string
-    @param gs_access_key_id: Your Google Cloud Storage Access Key ID
+    @param gs_access_key_id: Your Google Storage Access Key ID
 
     @type gs_secret_access_key: string
-    @param gs_secret_access_key: Your Google Cloud Storage Secret Access Key
+    @param gs_secret_access_key: Your Google Storage Secret Access Key
 
     @rtype: L{GSConnection<boto.gs.connection.GSConnection>}
     @return: A connection to Google's Storage service
@@ -185,8 +162,7 @@ def connect_elb(aws_access_key_id=None, aws_secret_access_key=None, **kwargs):
     return ELBConnection(aws_access_key_id, aws_secret_access_key, **kwargs)
 
 
-def connect_autoscale(aws_access_key_id=None, aws_secret_access_key=None,
-                      **kwargs):
+def connect_autoscale(aws_access_key_id=None, aws_secret_access_key=None, **kwargs):
     """
     :type aws_access_key_id: string
     :param aws_access_key_id: Your AWS Access Key ID
@@ -196,19 +172,12 @@ def connect_autoscale(aws_access_key_id=None, aws_secret_access_key=None,
 
     :rtype: :class:`boto.ec2.autoscale.AutoScaleConnection`
     :return: A connection to Amazon's Auto Scaling Service
-
-    :type use_block_device_types bool
-    :param use_block_device_types: Specifies whether to return described Launch Configs with block device mappings containing
-        block device types, or a list of old style block device mappings (deprecated).  This defaults to false for compatability
-        with the old incorrect style.
     """
     from boto.ec2.autoscale import AutoScaleConnection
-    return AutoScaleConnection(aws_access_key_id, aws_secret_access_key,
-                               **kwargs)
+    return AutoScaleConnection(aws_access_key_id, aws_secret_access_key, **kwargs)
 
 
-def connect_cloudwatch(aws_access_key_id=None, aws_secret_access_key=None,
-                       **kwargs):
+def connect_cloudwatch(aws_access_key_id=None, aws_secret_access_key=None, **kwargs):
     """
     :type aws_access_key_id: string
     :param aws_access_key_id: Your AWS Access Key ID
@@ -220,8 +189,7 @@ def connect_cloudwatch(aws_access_key_id=None, aws_secret_access_key=None,
     :return: A connection to Amazon's EC2 Monitoring service
     """
     from boto.ec2.cloudwatch import CloudWatchConnection
-    return CloudWatchConnection(aws_access_key_id, aws_secret_access_key,
-                                **kwargs)
+    return CloudWatchConnection(aws_access_key_id, aws_secret_access_key, **kwargs)
 
 
 def connect_sdb(aws_access_key_id=None, aws_secret_access_key=None, **kwargs):
@@ -254,8 +222,7 @@ def connect_fps(aws_access_key_id=None, aws_secret_access_key=None, **kwargs):
     return FPSConnection(aws_access_key_id, aws_secret_access_key, **kwargs)
 
 
-def connect_mturk(aws_access_key_id=None, aws_secret_access_key=None,
-                  **kwargs):
+def connect_mturk(aws_access_key_id=None, aws_secret_access_key=None, **kwargs):
     """
     :type aws_access_key_id: string
     :param aws_access_key_id: Your AWS Access Key ID
@@ -270,8 +237,7 @@ def connect_mturk(aws_access_key_id=None, aws_secret_access_key=None,
     return MTurkConnection(aws_access_key_id, aws_secret_access_key, **kwargs)
 
 
-def connect_cloudfront(aws_access_key_id=None, aws_secret_access_key=None,
-                       **kwargs):
+def connect_cloudfront(aws_access_key_id=None, aws_secret_access_key=None, **kwargs):
     """
     :type aws_access_key_id: string
     :param aws_access_key_id: Your AWS Access Key ID
@@ -283,8 +249,7 @@ def connect_cloudfront(aws_access_key_id=None, aws_secret_access_key=None,
     :return: A connection to FPS
     """
     from boto.cloudfront import CloudFrontConnection
-    return CloudFrontConnection(aws_access_key_id, aws_secret_access_key,
-                                **kwargs)
+    return CloudFrontConnection(aws_access_key_id, aws_secret_access_key, **kwargs)
 
 
 def connect_vpc(aws_access_key_id=None, aws_secret_access_key=None, **kwargs):
@@ -315,25 +280,6 @@ def connect_rds(aws_access_key_id=None, aws_secret_access_key=None, **kwargs):
     """
     from boto.rds import RDSConnection
     return RDSConnection(aws_access_key_id, aws_secret_access_key, **kwargs)
-
-
-def connect_rds2(aws_access_key_id=None, aws_secret_access_key=None, **kwargs):
-    """
-    :type aws_access_key_id: string
-    :param aws_access_key_id: Your AWS Access Key ID
-
-    :type aws_secret_access_key: string
-    :param aws_secret_access_key: Your AWS Secret Access Key
-
-    :rtype: :class:`boto.rds2.layer1.RDSConnection`
-    :return: A connection to RDS
-    """
-    from boto.rds2.layer1 import RDSConnection
-    return RDSConnection(
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_secret_access_key,
-        **kwargs
-    )
 
 
 def connect_emr(aws_access_key_id=None, aws_secret_access_key=None, **kwargs):
@@ -381,8 +327,7 @@ def connect_iam(aws_access_key_id=None, aws_secret_access_key=None, **kwargs):
     return IAMConnection(aws_access_key_id, aws_secret_access_key, **kwargs)
 
 
-def connect_route53(aws_access_key_id=None, aws_secret_access_key=None,
-                    **kwargs):
+def connect_route53(aws_access_key_id=None, aws_secret_access_key=None, **kwargs):
     """
     :type aws_access_key_id: string
     :param aws_access_key_id: Your AWS Access Key ID
@@ -394,28 +339,10 @@ def connect_route53(aws_access_key_id=None, aws_secret_access_key=None,
     :return: A connection to Amazon's Route53 DNS Service
     """
     from boto.route53 import Route53Connection
-    return Route53Connection(aws_access_key_id, aws_secret_access_key,
-                             **kwargs)
+    return Route53Connection(aws_access_key_id, aws_secret_access_key, **kwargs)
 
 
-def connect_cloudformation(aws_access_key_id=None, aws_secret_access_key=None,
-                           **kwargs):
-    """
-    :type aws_access_key_id: string
-    :param aws_access_key_id: Your AWS Access Key ID
-
-    :type aws_secret_access_key: string
-    :param aws_secret_access_key: Your AWS Secret Access Key
-
-    :rtype: :class:`boto.cloudformation.CloudFormationConnection`
-    :return: A connection to Amazon's CloudFormation Service
-    """
-    from boto.cloudformation import CloudFormationConnection
-    return CloudFormationConnection(aws_access_key_id, aws_secret_access_key,
-                                    **kwargs)
-
-
-def connect_euca(host=None, aws_access_key_id=None, aws_secret_access_key=None,
+def connect_euca(host, aws_access_key_id=None, aws_secret_access_key=None,
                  port=8773, path='/services/Eucalyptus', is_secure=False,
                  **kwargs):
     """
@@ -436,79 +363,13 @@ def connect_euca(host=None, aws_access_key_id=None, aws_secret_access_key=None,
     from boto.ec2 import EC2Connection
     from boto.ec2.regioninfo import RegionInfo
 
-    # Check for values in boto config, if not supplied as args
-    if not aws_access_key_id:
-        aws_access_key_id = config.get('Credentials',
-                                       'euca_access_key_id',
-                                       None)
-    if not aws_secret_access_key:
-        aws_secret_access_key = config.get('Credentials',
-                                           'euca_secret_access_key',
-                                           None)
-    if not host:
-        host = config.get('Boto', 'eucalyptus_host', None)
-
     reg = RegionInfo(name='eucalyptus', endpoint=host)
     return EC2Connection(aws_access_key_id, aws_secret_access_key,
                          region=reg, port=port, path=path,
                          is_secure=is_secure, **kwargs)
 
 
-def connect_glacier(aws_access_key_id=None, aws_secret_access_key=None,
-                    **kwargs):
-    """
-    :type aws_access_key_id: string
-    :param aws_access_key_id: Your AWS Access Key ID
-
-    :type aws_secret_access_key: string
-    :param aws_secret_access_key: Your AWS Secret Access Key
-
-    :rtype: :class:`boto.glacier.layer2.Layer2`
-    :return: A connection to Amazon's Glacier Service
-    """
-    from boto.glacier.layer2 import Layer2
-    return Layer2(aws_access_key_id, aws_secret_access_key,
-                  **kwargs)
-
-
-def connect_ec2_endpoint(url, aws_access_key_id=None,
-                         aws_secret_access_key=None,
-                         **kwargs):
-    """
-    Connect to an EC2 Api endpoint.  Additional arguments are passed
-    through to connect_ec2.
-
-    :type url: string
-    :param url: A url for the ec2 api endpoint to connect to
-
-    :type aws_access_key_id: string
-    :param aws_access_key_id: Your AWS Access Key ID
-
-    :type aws_secret_access_key: string
-    :param aws_secret_access_key: Your AWS Secret Access Key
-
-    :rtype: :class:`boto.ec2.connection.EC2Connection`
-    :return: A connection to Eucalyptus server
-    """
-    from boto.ec2.regioninfo import RegionInfo
-
-    purl = urlparse.urlparse(url)
-    kwargs['port'] = purl.port
-    kwargs['host'] = purl.hostname
-    kwargs['path'] = purl.path
-    if not 'is_secure' in kwargs:
-        kwargs['is_secure'] = (purl.scheme == "https")
-
-    kwargs['region'] = RegionInfo(name=purl.hostname,
-                                  endpoint=purl.hostname)
-    kwargs['aws_access_key_id'] = aws_access_key_id
-    kwargs['aws_secret_access_key'] = aws_secret_access_key
-
-    return(connect_ec2(**kwargs))
-
-
-def connect_walrus(host=None, aws_access_key_id=None,
-                   aws_secret_access_key=None,
+def connect_walrus(host, aws_access_key_id=None, aws_secret_access_key=None,
                    port=8773, path='/services/Walrus', is_secure=False,
                    **kwargs):
     """
@@ -528,18 +389,6 @@ def connect_walrus(host=None, aws_access_key_id=None,
     """
     from boto.s3.connection import S3Connection
     from boto.s3.connection import OrdinaryCallingFormat
-
-    # Check for values in boto config, if not supplied as args
-    if not aws_access_key_id:
-        aws_access_key_id = config.get('Credentials',
-                                       'euca_access_key_id',
-                                       None)
-    if not aws_secret_access_key:
-        aws_secret_access_key = config.get('Credentials',
-                                           'euca_secret_access_key',
-                                           None)
-    if not host:
-        host = config.get('Boto', 'walrus_host', None)
 
     return S3Connection(aws_access_key_id, aws_secret_access_key,
                         host=host, port=port, path=path,
@@ -562,35 +411,20 @@ def connect_ses(aws_access_key_id=None, aws_secret_access_key=None, **kwargs):
     return SESConnection(aws_access_key_id, aws_secret_access_key, **kwargs)
 
 
-def connect_sts(aws_access_key_id=None, aws_secret_access_key=None, **kwargs):
-    """
-    :type aws_access_key_id: string
-    :param aws_access_key_id: Your AWS Access Key ID
-
-    :type aws_secret_access_key: string
-    :param aws_secret_access_key: Your AWS Secret Access Key
-
-    :rtype: :class:`boto.sts.STSConnection`
-    :return: A connection to Amazon's STS
-    """
-    from boto.sts import STSConnection
-    return STSConnection(aws_access_key_id, aws_secret_access_key, **kwargs)
-
-
 def connect_ia(ia_access_key_id=None, ia_secret_access_key=None,
                is_secure=False, **kwargs):
     """
     Connect to the Internet Archive via their S3-like API.
 
     :type ia_access_key_id: string
-    :param ia_access_key_id: Your IA Access Key ID.  This will also look
-        in your boto config file for an entry in the Credentials
-        section called "ia_access_key_id"
+    :param ia_access_key_id: Your IA Access Key ID.  This will also look in your
+                             boto config file for an entry in the Credentials
+                             section called "ia_access_key_id"
 
     :type ia_secret_access_key: string
-    :param ia_secret_access_key: Your IA Secret Access Key.  This will also
-        look in your boto config file for an entry in the Credentials
-        section called "ia_secret_access_key"
+    :param ia_secret_access_key: Your IA Secret Access Key.  This will also look in your
+                                 boto config file for an entry in the Credentials
+                                 section called "ia_secret_access_key"
 
     :rtype: :class:`boto.s3.connection.S3Connection`
     :return: A connection to the Internet Archive
@@ -609,235 +443,48 @@ def connect_ia(ia_access_key_id=None, ia_secret_access_key=None,
                         is_secure=is_secure, **kwargs)
 
 
-def connect_dynamodb(aws_access_key_id=None,
-                     aws_secret_access_key=None,
-                     **kwargs):
+def check_extensions(module_name, module_path):
     """
-    :type aws_access_key_id: string
-    :param aws_access_key_id: Your AWS Access Key ID
+    This function checks for extensions to boto modules.  It should be called in the
+    __init__.py file of all boto modules.  See:
+    http://code.google.com/p/boto/wiki/ExtendModules
 
-    :type aws_secret_access_key: string
-    :param aws_secret_access_key: Your AWS Secret Access Key
-
-    :rtype: :class:`boto.dynamodb.layer2.Layer2`
-    :return: A connection to the Layer2 interface for DynamoDB.
+    for details.
     """
-    from boto.dynamodb.layer2 import Layer2
-    return Layer2(aws_access_key_id, aws_secret_access_key, **kwargs)
+    option_name = '%s_extend' % module_name
+    version = config.get('Boto', option_name, None)
+    if version:
+        dirname = module_path[0]
+        path = os.path.join(dirname, version)
+        if os.path.isdir(path):
+            log.info('extending module %s with: %s' % (module_name, path))
+            module_path.insert(0, path)
+
+_aws_cache = {}
 
 
-def connect_swf(aws_access_key_id=None,
-                aws_secret_access_key=None,
-                **kwargs):
-    """
-    :type aws_access_key_id: string
-    :param aws_access_key_id: Your AWS Access Key ID
-
-    :type aws_secret_access_key: string
-    :param aws_secret_access_key: Your AWS Secret Access Key
-
-    :rtype: :class:`boto.swf.layer1.Layer1`
-    :return: A connection to the Layer1 interface for SWF.
-    """
-    from boto.swf.layer1 import Layer1
-    return Layer1(aws_access_key_id, aws_secret_access_key, **kwargs)
+def _get_aws_conn(service):
+    global _aws_cache
+    conn = _aws_cache.get(service)
+    if not conn:
+        meth = getattr(sys.modules[__name__], 'connect_' + service)
+        conn = meth()
+        _aws_cache[service] = conn
+    return conn
 
 
-def connect_cloudsearch(aws_access_key_id=None,
-                        aws_secret_access_key=None,
-                        **kwargs):
-    """
-    :type aws_access_key_id: string
-    :param aws_access_key_id: Your AWS Access Key ID
+def lookup(service, name):
+    global _aws_cache
+    conn = _get_aws_conn(service)
+    obj = _aws_cache.get('.'.join((service, name)), None)
+    if not obj:
+        obj = conn.lookup(name)
+        _aws_cache['.'.join((service, name))] = obj
+    return obj
 
-    :type aws_secret_access_key: string
-    :param aws_secret_access_key: Your AWS Secret Access Key
-
-    :rtype: :class:`boto.cloudsearch.layer2.Layer2`
-    :return: A connection to Amazon's CloudSearch service
-    """
-    from boto.cloudsearch.layer2 import Layer2
-    return Layer2(aws_access_key_id, aws_secret_access_key,
-                  **kwargs)
-
-
-def connect_cloudsearch2(aws_access_key_id=None,
-                         aws_secret_access_key=None,
-                         **kwargs):
-    """
-    :type aws_access_key_id: string
-    :param aws_access_key_id: Your AWS Access Key ID
-
-    :type aws_secret_access_key: string
-    :param aws_secret_access_key: Your AWS Secret Access Key
-
-    :rtype: :class:`boto.cloudsearch2.layer2.Layer2`
-    :return: A connection to Amazon's CloudSearch2 service
-    """
-    from boto.cloudsearch2.layer2 import Layer2
-    return Layer2(aws_access_key_id, aws_secret_access_key,
-                  **kwargs)
-
-
-def connect_beanstalk(aws_access_key_id=None,
-                      aws_secret_access_key=None,
-                      **kwargs):
-    """
-    :type aws_access_key_id: string
-    :param aws_access_key_id: Your AWS Access Key ID
-
-    :type aws_secret_access_key: string
-    :param aws_secret_access_key: Your AWS Secret Access Key
-
-    :rtype: :class:`boto.beanstalk.layer1.Layer1`
-    :return: A connection to Amazon's Elastic Beanstalk service
-    """
-    from boto.beanstalk.layer1 import Layer1
-    return Layer1(aws_access_key_id, aws_secret_access_key, **kwargs)
-
-
-def connect_elastictranscoder(aws_access_key_id=None,
-                              aws_secret_access_key=None,
-                              **kwargs):
-    """
-    :type aws_access_key_id: string
-    :param aws_access_key_id: Your AWS Access Key ID
-
-    :type aws_secret_access_key: string
-    :param aws_secret_access_key: Your AWS Secret Access Key
-
-    :rtype: :class:`boto.ets.layer1.ElasticTranscoderConnection`
-    :return: A connection to Amazon's Elastic Transcoder service
-    """
-    from boto.elastictranscoder.layer1 import ElasticTranscoderConnection
-    return ElasticTranscoderConnection(
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_secret_access_key,
-        **kwargs)
-
-
-def connect_opsworks(aws_access_key_id=None,
-                     aws_secret_access_key=None,
-                     **kwargs):
-    from boto.opsworks.layer1 import OpsWorksConnection
-    return OpsWorksConnection(
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_secret_access_key,
-        **kwargs)
-
-
-def connect_redshift(aws_access_key_id=None,
-                     aws_secret_access_key=None,
-                     **kwargs):
-    """
-    :type aws_access_key_id: string
-    :param aws_access_key_id: Your AWS Access Key ID
-
-    :type aws_secret_access_key: string
-    :param aws_secret_access_key: Your AWS Secret Access Key
-
-    :rtype: :class:`boto.redshift.layer1.RedshiftConnection`
-    :return: A connection to Amazon's Redshift service
-    """
-    from boto.redshift.layer1 import RedshiftConnection
-    return RedshiftConnection(
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_secret_access_key,
-        **kwargs
-    )
-
-
-def connect_support(aws_access_key_id=None,
-                    aws_secret_access_key=None,
-                    **kwargs):
-    """
-    :type aws_access_key_id: string
-    :param aws_access_key_id: Your AWS Access Key ID
-
-    :type aws_secret_access_key: string
-    :param aws_secret_access_key: Your AWS Secret Access Key
-
-    :rtype: :class:`boto.support.layer1.SupportConnection`
-    :return: A connection to Amazon's Support service
-    """
-    from boto.support.layer1 import SupportConnection
-    return SupportConnection(
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_secret_access_key,
-        **kwargs
-    )
-
-
-def connect_cloudtrail(aws_access_key_id=None,
-                    aws_secret_access_key=None,
-                    **kwargs):
-    """
-    Connect to AWS CloudTrail
-
-    :type aws_access_key_id: string
-    :param aws_access_key_id: Your AWS Access Key ID
-
-    :type aws_secret_access_key: string
-    :param aws_secret_access_key: Your AWS Secret Access Key
-
-    :rtype: :class:`boto.cloudtrail.layer1.CloudtrailConnection`
-    :return: A connection to the AWS Cloudtrail service
-    """
-    from boto.cloudtrail.layer1 import CloudTrailConnection
-    return CloudTrailConnection(
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_secret_access_key,
-        **kwargs
-    )
-
-
-def connect_directconnect(aws_access_key_id=None,
-                          aws_secret_access_key=None,
-                          **kwargs):
-    """
-    Connect to AWS DirectConnect
-
-    :type aws_access_key_id: string
-    :param aws_access_key_id: Your AWS Access Key ID
-
-    :type aws_secret_access_key: string
-    :param aws_secret_access_key: Your AWS Secret Access Key
-
-    :rtype: :class:`boto.directconnect.layer1.DirectConnectConnection`
-    :return: A connection to the AWS DirectConnect service
-    """
-    from boto.directconnect.layer1 import DirectConnectConnection
-    return DirectConnectConnection(
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_secret_access_key,
-        **kwargs
-    )
-
-def connect_kinesis(aws_access_key_id=None,
-                    aws_secret_access_key=None,
-                    **kwargs):
-    """
-    Connect to Amazon Kinesis
-
-    :type aws_access_key_id: string
-    :param aws_access_key_id: Your AWS Access Key ID
-
-    :type aws_secret_access_key: string
-    :param aws_secret_access_key: Your AWS Secret Access Key
-
-    rtype: :class:`boto.kinesis.layer1.KinesisConnection`
-    :return: A connection to the Amazon Kinesis service
-    """
-    from boto.kinesis.layer1 import KinesisConnection
-    return KinesisConnection(
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_secret_access_key,
-        **kwargs
-    )
 
 def storage_uri(uri_str, default_scheme='file', debug=0, validate=True,
-                bucket_storage_uri_class=BucketStorageUri,
-                suppress_consec_slashes=True, is_latest=False):
+                bucket_storage_uri_class=BucketStorageUri):
     """
     Instantiate a StorageUri from a URI string.
 
@@ -851,11 +498,6 @@ def storage_uri(uri_str, default_scheme='file', debug=0, validate=True,
     :param validate: whether to check for bucket name validity.
     :type bucket_storage_uri_class: BucketStorageUri interface.
     :param bucket_storage_uri_class: Allows mocking for unit tests.
-    :param suppress_consec_slashes: If provided, controls whether
-        consecutive slashes will be suppressed in key paths.
-    :type is_latest: bool
-    :param is_latest: whether this versioned object represents the
-        current version.
 
     We allow validate to be disabled to allow caller
     to implement bucket-level wildcarding (outside the boto library;
@@ -867,23 +509,24 @@ def storage_uri(uri_str, default_scheme='file', debug=0, validate=True,
     ``uri_str`` must be one of the following formats:
 
     * gs://bucket/name
-    * gs://bucket/name#ver
     * s3://bucket/name
     * gs://bucket
     * s3://bucket
-    * filename (which could be a Unix path like /a/b/c or a Windows path like
-      C:\a\b\c)
+    * filename
 
-    The last example uses the default scheme ('file', unless overridden).
+    The last example uses the default scheme ('file', unless overridden)
     """
-    version_id = None
-    generation = None
 
     # Manually parse URI components instead of using urlparse.urlparse because
     # what we're calling URIs don't really fit the standard syntax for URIs
     # (the latter includes an optional host/net location part).
     end_scheme_idx = uri_str.find('://')
     if end_scheme_idx == -1:
+        # Check for common error: user specifies gs:bucket instead
+        # of gs://bucket. Some URI parsers allow this, but it can cause
+        # confusion for callers, so we don't.
+        if uri_str.find(':') != -1:
+            raise InvalidUriError('"%s" contains ":" instead of "://"' % uri_str)
         scheme = default_scheme.lower()
         path = uri_str
     else:
@@ -895,45 +538,25 @@ def storage_uri(uri_str, default_scheme='file', debug=0, validate=True,
     if scheme == 'file':
         # For file URIs we have no bucket name, and use the complete path
         # (minus 'file://') as the object name.
-        is_stream = False
-        if path == '-':
-            is_stream = True
-        return FileStorageUri(path, debug, is_stream)
+        return FileStorageUri(path, debug)
     else:
         path_parts = path.split('/', 1)
         bucket_name = path_parts[0]
-        object_name = ''
-        # If validate enabled, ensure the bucket name is valid, to avoid
-        # possibly confusing other parts of the code. (For example if we didn't
+        if (validate and bucket_name and
+            # Disallow buckets violating charset or not [3..255] chars total.
+            (not re.match('^[a-z0-9][a-z0-9\._-]{1,253}[a-z0-9]$', bucket_name)
+             # Disallow buckets with individual DNS labels longer than 63.
+             or re.search('[-_a-z0-9]{64}', bucket_name))):
+            raise InvalidUriError('Invalid bucket name in URI "%s"' % uri_str)
+        # If enabled, ensure the bucket name is valid, to avoid possibly
+        # confusing other parts of the code. (For example if we didn't
         # catch bucket names containing ':', when a user tried to connect to
         # the server with that name they might get a confusing error about
         # non-integer port numbers.)
-        if (validate and bucket_name and
-            (not BUCKET_NAME_RE.match(bucket_name)
-             or TOO_LONG_DNS_NAME_COMP.search(bucket_name))):
-            raise InvalidUriError('Invalid bucket name in URI "%s"' % uri_str)
-        if scheme == 'gs':
-            match = GENERATION_RE.search(path)
-            if match:
-                md = match.groupdict()
-                versionless_uri_str = md['versionless_uri_str']
-                path_parts = versionless_uri_str.split('/', 1)
-                generation = int(md['generation'])
-        elif scheme == 's3':
-            match = VERSION_RE.search(path)
-            if match:
-                md = match.groupdict()
-                versionless_uri_str = md['versionless_uri_str']
-                path_parts = versionless_uri_str.split('/', 1)
-                version_id = md['version_id']
-        else:
-            raise InvalidUriError('Unrecognized scheme "%s"' % scheme)
+        object_name = ''
         if len(path_parts) > 1:
             object_name = path_parts[1]
-        return bucket_storage_uri_class(
-            scheme, bucket_name, object_name, debug,
-            suppress_consec_slashes=suppress_consec_slashes,
-            version_id=version_id, generation=generation, is_latest=is_latest)
+        return bucket_storage_uri_class(scheme, bucket_name, object_name, debug)
 
 
 def storage_uri_for_key(key):

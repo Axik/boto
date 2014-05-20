@@ -23,7 +23,7 @@
 import os
 
 class Converter(object):
-
+    
     @classmethod
     def convert_string(cls, param, value):
         # TODO: could do length validation, etc. here
@@ -35,7 +35,7 @@ class Converter(object):
     def convert_integer(cls, param, value):
         # TODO: could do range checking here
         return int(value)
-
+        
     @classmethod
     def convert_boolean(cls, param, value):
         """
@@ -43,19 +43,19 @@ class Converter(object):
         of the option means True so just return True
         """
         return True
-
+        
     @classmethod
     def convert_file(cls, param, value):
-        if os.path.exists(value) and not os.path.isdir(value):
+        if os.path.isfile(value):
             return value
         raise ValueError
-
+        
     @classmethod
     def convert_dir(cls, param, value):
         if os.path.isdir(value):
             return value
         raise ValueError
-
+        
     @classmethod
     def convert(cls, param, value):
         try:
@@ -66,13 +66,13 @@ class Converter(object):
             return mthd(param, value)
         except:
             raise ValidationException(param, '')
-
-class Param(Converter):
+        
+class Param(object):
 
     def __init__(self, name=None, ptype='string', optional=True,
                  short_name=None, long_name=None, doc='',
                  metavar=None, cardinality=1, default=None,
-                 choices=None, encoder=None, request_param=True):
+                 choices=None):
         self.name = name
         self.ptype = ptype
         self.optional = optional
@@ -83,8 +83,6 @@ class Param(Converter):
         self.cardinality = cardinality
         self.default = default
         self.choices = choices
-        self.encoder = encoder
-        self.request_param = request_param
 
     @property
     def optparse_long_name(self):
@@ -142,6 +140,6 @@ class Param(Converter):
         :param value: The value to convert.  This should always
                       be a string.
         """
-        return super(Param, self).convert(self,value)
+        return Converter.convert(self, value)
 
 

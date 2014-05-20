@@ -25,7 +25,6 @@ from boto.exception import InvalidAclError
 ACCESS_CONTROL_LIST = 'AccessControlList'
 ALL_AUTHENTICATED_USERS = 'AllAuthenticatedUsers'
 ALL_USERS = 'AllUsers'
-DISPLAY_NAME = 'DisplayName'
 DOMAIN = 'Domain'
 EMAIL_ADDRESS = 'EmailAddress'
 ENTRY = 'Entry'
@@ -43,31 +42,24 @@ USER_BY_EMAIL = 'UserByEmail'
 USER_BY_ID = 'UserById'
 
 
-CannedACLStrings = ['private', 'public-read', 'project-private',
+CannedACLStrings = ['private', 'public-read',
                     'public-read-write', 'authenticated-read',
                     'bucket-owner-read', 'bucket-owner-full-control']
-"""A list of Google Cloud Storage predefined (canned) ACL strings."""
 
 SupportedPermissions = ['READ', 'WRITE', 'FULL_CONTROL']
-"""A list of supported ACL permissions."""
 
-
-class ACL(object):
+class ACL:
 
     def __init__(self, parent=None):
         self.parent = parent
-        self.entries = Entries(self)
-
-    @property
-    def acl(self):
-        return self
+        self.entries = []
 
     def __repr__(self):
         # Owner is optional in GS ACLs.
         if hasattr(self, 'owner'):
-            entries_repr = ['Owner:%s' % self.owner.__repr__()]
-        else:
             entries_repr = ['']
+        else:
+            entries_repr = ['Owner:%s' % self.owner.__repr__()]
         acl_entries = self.entries
         if acl_entries:
             for e in acl_entries.entry_list:
@@ -97,19 +89,19 @@ class ACL(object):
         self.entries.entry_list.append(entry)
 
     def startElement(self, name, attrs, connection):
-        if name.lower() == OWNER.lower():
+        if name == OWNER:
             self.owner = User(self)
             return self.owner
-        elif name.lower() == ENTRIES.lower():
+        elif name == ENTRIES:
             self.entries = Entries(self)
             return self.entries
         else:
             return None
 
     def endElement(self, name, value, connection):
-        if name.lower() == OWNER.lower():
+        if name == OWNER:
             pass
-        elif name.lower() == ENTRIES.lower():
+        elif name == ENTRIES:
             pass
         else:
             setattr(self, name, value)
@@ -126,7 +118,7 @@ class ACL(object):
         return s
 
 
-class Entries(object):
+class Entries:
 
     def __init__(self, parent=None):
         self.parent = parent
@@ -141,7 +133,7 @@ class Entries(object):
         return '<Entries: %s>' % ', '.join(entries_repr)
 
     def startElement(self, name, attrs, connection):
-        if name.lower() == ENTRY.lower():
+        if name == ENTRY:
             entry = Entry(self)
             self.entry_list.append(entry)
             return entry
@@ -149,23 +141,21 @@ class Entries(object):
             return None
 
     def endElement(self, name, value, connection):
-        if name.lower() == ENTRY.lower():
+        if name == ENTRY:
             pass
         else:
             setattr(self, name, value)
 
     def to_xml(self):
-        if not self.entry_list:
-          return ''
         s = '<%s>' % ENTRIES
         for entry in self.entry_list:
             s += entry.to_xml()
         s += '</%s>' % ENTRIES
         return s
-
+        
 
 # Class that represents a single (Scope, Permission) entry in an ACL.
-class Entry(object):
+class Entry:
 
     def __init__(self, scope=None, type=None, id=None, name=None,
                  email_address=None, domain=None, permission=None):
@@ -178,36 +168,21 @@ class Entry(object):
         return '<%s: %s>' % (self.scope.__repr__(), self.permission.__repr__())
 
     def startElement(self, name, attrs, connection):
-        if name.lower() == SCOPE.lower():
-            # The following if statement used to look like this: 
-            #   if not TYPE in attrs:
-            # which caused problems because older versions of the 
-            # AttributesImpl class in the xml.sax library neglected to include 
-            # a __contains__() method (which Python calls to implement the 
-            # 'in' operator). So when you use the in operator, like the if
-            # statement above, Python invokes the __getiter__() method with
-            # index 0, which raises an exception. More recent versions of 
-            # xml.sax include the __contains__() method, rendering the in 
-            # operator functional. The work-around here is to formulate the
-            # if statement as below, which is the legal way to query 
-            # AttributesImpl for containment (and is also how the added
-            # __contains__() method works). At one time gsutil disallowed
-            # xmlplus-based parsers, until this more specific problem was 
-            # determined.
-            if TYPE not in attrs:
+        if name == SCOPE:
+            if not TYPE in attrs:
                 raise InvalidAclError('Missing "%s" in "%s" part of ACL' %
                                       (TYPE, SCOPE))
             self.scope = Scope(self, attrs[TYPE])
             return self.scope
-        elif name.lower() == PERMISSION.lower():
+        elif name == PERMISSION:
             pass
         else:
             return None
 
     def endElement(self, name, value, connection):
-        if name.lower() == SCOPE.lower():
+        if name == SCOPE:
             pass
-        elif name.lower() == PERMISSION.lower():
+        elif name == PERMISSION:
             value = value.strip()
             if not value in SupportedPermissions:
                 raise InvalidAclError('Invalid Permission "%s"' % value)
@@ -222,20 +197,17 @@ class Entry(object):
         s += '</%s>' % ENTRY
         return s
 
+class Scope:
 
-class Scope(object):
-
-    # Map from Scope type.lower() to lower-cased list of allowed sub-elems.
+    # Map from Scope type to list of allowed sub-elems.
     ALLOWED_SCOPE_TYPE_SUB_ELEMS = {
-        ALL_AUTHENTICATED_USERS.lower() : [],
-        ALL_USERS.lower() : [],
-        GROUP_BY_DOMAIN.lower() : [DOMAIN.lower()],
-        GROUP_BY_EMAIL.lower() : [
-            DISPLAY_NAME.lower(), EMAIL_ADDRESS.lower(), NAME.lower()],
-        GROUP_BY_ID.lower() : [DISPLAY_NAME.lower(), ID.lower(), NAME.lower()],
-        USER_BY_EMAIL.lower() : [
-            DISPLAY_NAME.lower(), EMAIL_ADDRESS.lower(), NAME.lower()],
-        USER_BY_ID.lower() : [DISPLAY_NAME.lower(), ID.lower(), NAME.lower()]
+        ALL_AUTHENTICATED_USERS : [],
+        ALL_USERS : [],
+        GROUP_BY_DOMAIN : [DOMAIN],
+        GROUP_BY_EMAIL : [EMAIL_ADDRESS, NAME],
+        GROUP_BY_ID : [ID, NAME],
+        USER_BY_EMAIL : [EMAIL_ADDRESS, NAME],
+        USER_BY_ID : [ID, NAME]
     }
 
     def __init__(self, parent, type=None, id=None, name=None,
@@ -246,7 +218,7 @@ class Scope(object):
         self.id = id
         self.domain = domain
         self.email_address = email_address
-        if self.type.lower() not in self.ALLOWED_SCOPE_TYPE_SUB_ELEMS:
+        if not self.ALLOWED_SCOPE_TYPE_SUB_ELEMS.has_key(self.type):
             raise InvalidAclError('Invalid %s %s "%s" ' %
                                   (SCOPE, TYPE, self.type))
 
@@ -264,40 +236,36 @@ class Scope(object):
             return '<%s>' % self.type
 
     def startElement(self, name, attrs, connection):
-        if (not name.lower() in
-            self.ALLOWED_SCOPE_TYPE_SUB_ELEMS[self.type.lower()]):
+        if not name in self.ALLOWED_SCOPE_TYPE_SUB_ELEMS[self.type]:
             raise InvalidAclError('Element "%s" not allowed in %s %s "%s" ' %
                                    (name, SCOPE, TYPE, self.type))
         return None
 
     def endElement(self, name, value, connection):
         value = value.strip()
-        if name.lower() == DOMAIN.lower():
+        if name == DOMAIN:
             self.domain = value
-        elif name.lower() == EMAIL_ADDRESS.lower():
+        elif name == EMAIL_ADDRESS:
             self.email_address = value
-        elif name.lower() == ID.lower():
+        elif name == ID:
             self.id = value
-        elif name.lower() == NAME.lower():
+        elif name == NAME:
             self.name = value
         else:
             setattr(self, name, value)
 
     def to_xml(self):
         s = '<%s type="%s">' % (SCOPE, self.type)
-        if (self.type.lower() == ALL_AUTHENTICATED_USERS.lower()
-            or self.type.lower() == ALL_USERS.lower()):
+        if self.type == ALL_AUTHENTICATED_USERS or self.type == ALL_USERS:
             pass
-        elif self.type.lower() == GROUP_BY_DOMAIN.lower():
+        elif self.type == GROUP_BY_DOMAIN:
             s += '<%s>%s</%s>' % (DOMAIN, self.domain, DOMAIN)
-        elif (self.type.lower() == GROUP_BY_EMAIL.lower()
-              or self.type.lower() == USER_BY_EMAIL.lower()):
+        elif self.type == GROUP_BY_EMAIL or self.type == USER_BY_EMAIL:
             s += '<%s>%s</%s>' % (EMAIL_ADDRESS, self.email_address,
                                   EMAIL_ADDRESS)
             if self.name:
               s += '<%s>%s</%s>' % (NAME, self.name, NAME)
-        elif (self.type.lower() == GROUP_BY_ID.lower()
-              or self.type.lower() == USER_BY_ID.lower()):
+        elif self.type == GROUP_BY_ID or self.type == USER_BY_ID:
             s += '<%s>%s</%s>' % (ID, self.id, ID)
             if self.name:
               s += '<%s>%s</%s>' % (NAME, self.name, NAME)

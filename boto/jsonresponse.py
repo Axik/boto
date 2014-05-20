@@ -21,7 +21,7 @@
 # IN THE SOFTWARE.
 
 import xml.sax
-import utils
+import boto.utils
 
 class XmlHandler(xml.sax.ContentHandler):
 
@@ -33,7 +33,7 @@ class XmlHandler(xml.sax.ContentHandler):
     def startElement(self, name, attrs):
         self.current_text = ''
         t = self.nodes[-1][1].startElement(name, attrs, self.connection)
-        if t is not None:
+        if t != None:
             if isinstance(t, tuple):
                 self.nodes.append(t)
             else:
@@ -60,8 +60,8 @@ class Element(dict):
         dict.__init__(self)
         self.connection = connection
         self.element_name = element_name
-        self.list_marker = utils.mklist(list_marker)
-        self.item_marker = utils.mklist(item_marker)
+        self.list_marker = boto.utils.mklist(list_marker)
+        self.item_marker = boto.utils.mklist(item_marker)
         if stack is None:
             self.stack = []
         else:
@@ -83,7 +83,7 @@ class Element(dict):
 
     def get_name(self, name):
         if self.pythonize_name:
-            name = utils.pythonize_name(name)
+            name = boto.utils.pythonize_name(name)
         return name
 
     def startElement(self, name, attrs, connection):
@@ -128,21 +128,18 @@ class ListElement(list):
 
     def get_name(self, name):
         if self.pythonize_name:
-            name = utils.pythonize_name(name)
+            name = boto.utils.pythonize_name(name)
         return name
 
     def startElement(self, name, attrs, connection):
         for lm in self.list_marker:
             if name.endswith(lm):
-                l = ListElement(self.connection, name,
-                                self.list_marker, self.item_marker,
-                                self.pythonize_name)
+                l = ListElement(self.connection, name, self.item_marker,
+                                pythonize_name=self.pythonize_name)
                 setattr(self, self.get_name(name), l)
                 return l
         if name in self.item_marker:
             e = Element(self.connection, name, parent=self,
-                        list_marker=self.list_marker,
-                        item_marker=self.item_marker,
                         pythonize_name=self.pythonize_name)
             self.append(e)
             return e

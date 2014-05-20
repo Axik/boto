@@ -1,5 +1,4 @@
 # Copyright 2010 Google Inc.
-# Copyright (c) 2011, Nexenta Systems Inc.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
 # copy of this software and associated documentation files (the
@@ -50,7 +49,7 @@ class Bucket(object):
 
         :type version_id: string
         :param version_id: Unused in this subclass.
-
+        
         :type mfa_token: tuple or list of strings
         :param mfa_token: Unused in this subclass.
         """
@@ -68,8 +67,7 @@ class Bucket(object):
         key = Key(self.name, self.contained_key)
         return SimpleResultSet([key])
 
-    def get_key(self, key_name, headers=None, version_id=None,
-                                            key_type=Key.KEY_REGULAR_FILE):
+    def get_key(self, key_name, headers=None, version_id=None):
         """
         Check to see if a particular key exists within the bucket.
         Returns: An instance of a Key object or None
@@ -80,19 +78,13 @@ class Bucket(object):
         :type version_id: string
         :param version_id: Unused in this subclass.
 
-        :type stream_type: integer
-        :param stream_type: Type of the Key - Regular File or input/output Stream
-
         :rtype: :class:`boto.file.key.Key`
         :returns: A Key object from this bucket.
         """
-        if key_name == '-':
-            return Key(self.name, '-', key_type=Key.KEY_STREAM_READABLE)
-        else:
-            fp = open(key_name, 'rb')
-            return Key(self.name, key_name, fp)
+        fp = open(key_name, 'rb')
+        return Key(self.name, key_name, fp)
 
-    def new_key(self, key_name=None, key_type=Key.KEY_REGULAR_FILE):
+    def new_key(self, key_name=None):
         """
         Creates a new key
 
@@ -102,11 +94,8 @@ class Bucket(object):
         :rtype: :class:`boto.file.key.Key`
         :returns: An instance of the newly created key object
         """
-        if key_name == '-':
-            return Key(self.name, '-', key_type=Key.KEY_STREAM_WRITABLE)
-        else:
-            dir_name = os.path.dirname(key_name)
-            if dir_name and not os.path.exists(dir_name):
-                os.makedirs(dir_name)
-            fp = open(key_name, 'wb')
-            return Key(self.name, key_name, fp)
+        dir_name = os.path.dirname(key_name)
+        if dir_name and not os.path.exists(dir_name):
+            os.makedirs(dir_name)
+        fp = open(key_name, 'wb')
+        return Key(self.name, key_name, fp)

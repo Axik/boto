@@ -4,7 +4,7 @@ from boto.utils import ShellCommand, get_ts
 import boto
 import boto.utils
 
-class ScriptBase(object):
+class ScriptBase:
 
     def __init__(self, config_file=None):
         self.instance_id = boto.config.get('Instance', 'instance-id', 'default')
@@ -41,4 +41,4 @@ class ScriptBase(object):
 
     def main(self):
         pass
-
+        

@@ -1,7 +1,5 @@
-# Copyright (c) 2006-2012 Mitch Garnaat http://garnaat.org/
-# Copyright (c) 2012 Amazon.com, Inc. or its affiliates.
+# Copyright (c) 2006-2010 Mitch Garnaat http://garnaat.org/
 # Copyright (c) 2010, Eucalyptus Systems, Inc.
-# All Rights Reserved
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
 # copy of this software and associated documentation files (the
@@ -17,16 +15,15 @@
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
 # OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABIL-
 # ITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-# SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
 # WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
 
-import user
-import key
+import boto.s3.user
+import boto.s3.key
 from boto import handler
 import xml.sax
-
 
 class CompleteMultiPartUpload(object):
     """
@@ -38,23 +35,19 @@ class CompleteMultiPartUpload(object):
                      is contained
      * key_name - The name of the new, completed key
      * etag - The MD5 hash of the completed, combined upload
-     * version_id - The version_id of the completed upload
-     * encrypted - The value of the encryption header
     """
 
     def __init__(self, bucket=None):
-        self.bucket = bucket
+        self.bucket = None
         self.location = None
         self.bucket_name = None
         self.key_name = None
         self.etag = None
-        self.version_id = None
-        self.encrypted = None
 
     def __repr__(self):
         return '<CompleteMultiPartUpload: %s.%s>' % (self.bucket_name,
                                                      self.key_name)
-
+        
     def startElement(self, name, attrs, connection):
         return None
 
@@ -69,8 +62,7 @@ class CompleteMultiPartUpload(object):
             self.etag = value
         else:
             setattr(self, name, value)
-
-
+        
 class Part(object):
     """
     Represents a single part in a MultiPart upload.
@@ -94,7 +86,7 @@ class Part(object):
             return '<Part %d>' % self.part_number
         else:
             return '<Part %s>' % None
-
+        
     def startElement(self, name, attrs, connection):
         return None
 
@@ -109,9 +101,8 @@ class Part(object):
             self.size = int(value)
         else:
             setattr(self, name, value)
-
-
-def part_lister(mpupload, part_number_marker=None):
+        
+def part_lister(mpupload, part_number_marker=''):
     """
     A generator function for listing parts of a multipart upload.
     """
@@ -122,14 +113,13 @@ def part_lister(mpupload, part_number_marker=None):
         for part in parts:
             yield part
         part_number_marker = mpupload.next_part_number_marker
-        more_results = mpupload.is_truncated
-
-
+        more_results= mpupload.is_truncated
+        
 class MultiPartUpload(object):
     """
     Represents a MultiPart Upload operation.
     """
-
+    
     def __init__(self, bucket=None):
         self.bucket = bucket
         self.bucket_name = None
@@ -149,9 +139,10 @@ class MultiPartUpload(object):
         return '<MultiPartUpload %s>' % self.key_name
 
     def __iter__(self):
-        return part_lister(self)
+        return part_lister(self, part_number_marker=self.part_number_marker)
 
     def to_xml(self):
+        self.get_all_parts()
         s = '<CompleteMultipartUpload>\n'
         for part in self:
             s += '  <Part>\n'
@@ -194,13 +185,10 @@ class MultiPartUpload(object):
                 self.is_truncated = True
             else:
                 self.is_truncated = False
-        elif name == 'Initiated':
-            self.initiated = value
         else:
             setattr(self, name, value)
 
-    def get_all_parts(self, max_parts=None, part_number_marker=None,
-                      encoding_type=None):
+    def get_all_parts(self, max_parts=None, part_number_marker=None):
         """
         Return the uploaded parts of this MultiPart Upload.  This is
         a lower-level method that requires you to manually page through
@@ -211,11 +199,9 @@ class MultiPartUpload(object):
         self._parts = []
         query_args = 'uploadId=%s' % self.id
         if max_parts:
-            query_args += '&max-parts=%d' % max_parts
+            query_args += '&max_parts=%d' % max_parts
         if part_number_marker:
             query_args += '&part-number-marker=%s' % part_number_marker
-        if encoding_type:
-            query_args += '&encoding-type=%s' % encoding_type
         response = self.bucket.connection.make_request('GET', self.bucket.name,
                                                        self.key_name,
                                                        query_args=query_args)
@@ -226,84 +212,25 @@ class MultiPartUpload(object):
             return self._parts
 
     def upload_part_from_file(self, fp, part_num, headers=None, replace=True,
-                              cb=None, num_cb=10, md5=None, size=None):
+                               cb=None, num_cb=10, policy=None, md5=None):
         """
         Upload another part of this MultiPart Upload.
-
-        .. note::
-
-            After you initiate multipart upload and upload one or more parts,
-            you must either complete or abort multipart upload in order to stop
-            getting charged for storage of the uploaded parts. Only after you
-            either complete or abort multipart upload, Amazon S3 frees up the
-            parts storage and stops charging you for the parts storage.
-
+        
         :type fp: file
         :param fp: The file object you want to upload.
-
+        
         :type part_num: int
         :param part_num: The number of this part.
 
         The other parameters are exactly as defined for the
         :class:`boto.s3.key.Key` set_contents_from_file method.
-
-        :rtype: :class:`boto.s3.key.Key` or subclass
-        :returns: The uploaded part containing the etag.
         """
         if part_num < 1:
             raise ValueError('Part numbers must be greater than zero')
         query_args = 'uploadId=%s&partNumber=%d' % (self.id, part_num)
         key = self.bucket.new_key(self.key_name)
-        key.set_contents_from_file(fp, headers=headers, replace=replace,
-                                   cb=cb, num_cb=num_cb, md5=md5,
-                                   reduced_redundancy=False,
-                                   query_args=query_args, size=size)
-        return key
-
-    def copy_part_from_key(self, src_bucket_name, src_key_name, part_num,
-                           start=None, end=None, src_version_id=None,
-                           headers=None):
-        """
-        Copy another part of this MultiPart Upload.
-
-        :type src_bucket_name: string
-        :param src_bucket_name: Name of the bucket containing the source key
-
-        :type src_key_name: string
-        :param src_key_name: Name of the source key
-
-        :type part_num: int
-        :param part_num: The number of this part.
-
-        :type start: int
-        :param start: Zero-based byte offset to start copying from
-
-        :type end: int
-        :param end: Zero-based byte offset to copy to
-
-        :type src_version_id: string
-        :param src_version_id: version_id of source object to copy from
-
-        :type headers: dict
-        :param headers: Any headers to pass along in the request
-        """
-        if part_num < 1:
-            raise ValueError('Part numbers must be greater than zero')
-        query_args = 'uploadId=%s&partNumber=%d' % (self.id, part_num)
-        if start is not None and end is not None:
-            rng = 'bytes=%s-%s' % (start, end)
-            provider = self.bucket.connection.provider
-            if headers is None:
-                headers = {}
-            else:
-                headers = headers.copy()
-            headers[provider.copy_source_range_header] = rng
-        return self.bucket.copy_key(self.key_name, src_bucket_name,
-                                    src_key_name,
-                                    src_version_id=src_version_id,
-                                    storage_class=None,
-                                    headers=headers,
-                                    query_args=query_args)
+        key.set_contents_from_file(fp, headers, replace, cb, num_cb, policy,
+                                   md5, reduced_redundancy=False, query_args=query_args)
 
     def complete_upload(self):
         """
@@ -315,8 +242,8 @@ class MultiPartUpload(object):
         :returns: An object representing the completed upload.
         """
         xml = self.to_xml()
-        return self.bucket.complete_multipart_upload(self.key_name,
-                                                     self.id, xml)
+        self.bucket.complete_multipart_upload(self.key_name,
+                                              self.id, xml)
 
     def cancel_upload(self):
         """
@@ -328,3 +255,5 @@ class MultiPartUpload(object):
         completely free all storage consumed by all parts.
         """
         self.bucket.cancel_multipart_upload(self.key_name, self.id)
+
+

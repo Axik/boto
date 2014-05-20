@@ -14,7 +14,7 @@
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
 # OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABIL-
 # ITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-# SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
 # WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
@@ -34,11 +34,10 @@ class SSHClient(object):
 
     def __init__(self, server,
                  host_key_file='~/.ssh/known_hosts',
-                 uname='root', timeout=None, ssh_pwd=None):
+                 uname='root', ssh_pwd=None):
         self.server = server
         self.host_key_file = host_key_file
         self.uname = uname
-        self._timeout = timeout
         self._pkey = paramiko.RSAKey.from_private_key_file(server.ssh_key_file,
                                                            password=ssh_pwd)
         self._ssh_client = paramiko.SSHClient()
@@ -47,54 +46,47 @@ class SSHClient(object):
         self._ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.connect()
 
-    def connect(self, num_retries=5):
+    def connect(self):
         retry = 0
-        while retry < num_retries:
+        while retry < 5:
             try:
                 self._ssh_client.connect(self.server.hostname,
                                          username=self.uname,
-                                         pkey=self._pkey,
-                                         timeout=self._timeout)
+                                         pkey=self._pkey)
                 return
-            except socket.error, (value, message):
-                if value in (51, 61, 111):
-                    print 'SSH Connection refused, will retry in 5 seconds'
+            except socket.error as e:
+                value = e[0]    # TODO: ensure that we got the tuple version, and not the string version
+                if value == 61 or value == 111:
+                    print( 'SSH Connection refused, will retry in 5 seconds' )
                     time.sleep(5)
                     retry += 1
                 else:
                     raise
             except paramiko.BadHostKeyException:
-                print "%s has an entry in ~/.ssh/known_hosts and it doesn't match" % self.server.hostname
-                print 'Edit that file to remove the entry and then hit return to try again'
+                print( "%s has an entry in ~/.ssh/known_hosts and it doesn't match" % self.server.hostname )
+                print( 'Edit that file to remove the entry and then hit return to try again' )
                 raw_input('Hit Enter when ready')
                 retry += 1
             except EOFError:
-                print 'Unexpected Error from SSH Connection, retry in 5 seconds'
+                print( 'Unexpected Error from SSH Connection, retry in 5 seconds' )
                 time.sleep(5)
                 retry += 1
-        print 'Could not establish SSH connection'
-
-    def open_sftp(self):
-        return self._ssh_client.open_sftp()
+        print( 'Could not establish SSH connection' )
 
     def get_file(self, src, dst):
-        sftp_client = self.open_sftp()
+        sftp_client = self._ssh_client.open_sftp()
         sftp_client.get(src, dst)
 
     def put_file(self, src, dst):
-        sftp_client = self.open_sftp()
+        sftp_client = self._ssh_client.open_sftp()
         sftp_client.put(src, dst)
 
-    def open(self, filename, mode='r', bufsize=-1):
-        """
-        Open a file on the remote system and return a file-like object.
-        """
-        sftp_client = self.open_sftp()
-        return sftp_client.open(filename, mode, bufsize)
-
     def listdir(self, path):
-        sftp_client = self.open_sftp()
+        sftp_client = self._ssh_client.open_sftp()
         return sftp_client.listdir(path)
+
+    def open_sftp(self):
+        return self._ssh_client.open_sftp()
 
     def isdir(self, path):
         status = self.run('[ -d %s ] || echo "FALSE"' % path)
@@ -109,43 +101,24 @@ class SSHClient(object):
         return 1
 
     def shell(self):
-        """
-        Start an interactive shell session on the remote host.
-        """
         channel = self._ssh_client.invoke_shell()
         interactive_shell(channel)
 
     def run(self, command):
-        """
-        Execute a command on the remote host.  Return a tuple containing
-        an integer status and two strings, the first containing stdout
-        and the second containing stderr from the command.
-        """
-        boto.log.debug('running:%s on %s' % (command, self.server.instance_id))
+        boto.log.info('running:%s on %s' % (command, self.server.instance_id))
+        log_fp = StringIO.StringIO()
         status = 0
         try:
             t = self._ssh_client.exec_command(command)
         except paramiko.SSHException:
             status = 1
-        std_out = t[1].read()
-        std_err = t[2].read()
+        log_fp.write(t[1].read())
+        log_fp.write(t[2].read())
         t[0].close()
         t[1].close()
         t[2].close()
-        boto.log.debug('stdout: %s' % std_out)
-        boto.log.debug('stderr: %s' % std_err)
-        return (status, std_out, std_err)
-
-    def run_pty(self, command):
-        """
-        Execute a command on the remote host with a pseudo-terminal.
-        Returns a string containing the output of the command.
-        """
-        boto.log.debug('running:%s on %s' % (command, self.server.instance_id))
-        channel = self._ssh_client.get_transport().open_session()
-        channel.get_pty()
-        channel.exec_command(command)
-        return channel
+        boto.log.info('output: %s' % log_fp.getvalue())
+        return (status, log_fp.getvalue())
 
     def close(self):
         transport = self._ssh_client.get_transport()
@@ -175,14 +148,14 @@ class LocalClient(object):
         return os.path.exists(path)
 
     def shell(self):
-        raise NotImplementedError('shell not supported with LocalClient')
+        raise NotImplementedError( 'shell not supported with LocalClient' )
 
     def run(self):
         boto.log.info('running:%s' % self.command)
         log_fp = StringIO.StringIO()
         process = subprocess.Popen(self.command, shell=True, stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        while process.poll() is None:
+        while process.poll() == None:
             time.sleep(1)
             t = process.communicate()
             log_fp.write(t[0])
@@ -194,50 +167,9 @@ class LocalClient(object):
     def close(self):
         pass
 
-class FakeServer(object):
-    """
-    A little class to fake out SSHClient (which is expecting a
-    :class`boto.manage.server.Server` instance.  This allows us
-    to
-    """
-    def __init__(self, instance, ssh_key_file):
-        self.instance = instance
-        self.ssh_key_file = ssh_key_file
-        self.hostname = instance.dns_name
-        self.instance_id = self.instance.id
-
 def start(server):
     instance_id = boto.config.get('Instance', 'instance-id', None)
     if instance_id == server.instance_id:
         return LocalClient(server)
     else:
         return SSHClient(server)
-
-def sshclient_from_instance(instance, ssh_key_file,
-                            host_key_file='~/.ssh/known_hosts',
-                            user_name='root', ssh_pwd=None):
-    """
-    Create and return an SSHClient object given an
-    instance object.
-
-    :type instance: :class`boto.ec2.instance.Instance` object
-    :param instance: The instance object.
-
-    :type ssh_key_file: str
-    :param ssh_key_file: A path to the private key file used
-                         to log into instance.
-
-    :type host_key_file: str
-    :param host_key_file: A path to the known_hosts file used
-                          by the SSH client.
-                          Defaults to ~/.ssh/known_hosts
-    :type user_name: str
-    :param user_name: The username to use when logging into
-                      the instance.  Defaults to root.
-
-    :type ssh_pwd: str
-    :param ssh_pwd: The passphrase, if any, associated with
-                    private key.
-    """
-    s = FakeServer(instance, ssh_key_file)
-    return SSHClient(s, host_key_file, user_name, ssh_pwd)

@@ -59,7 +59,7 @@ class SequenceGenerator(object):
         # If they pass us in a string that's not at least
         # the lenght of our sequence, then return the
         # first element in our sequence
-        if val is None or len(val) < self.sequence_length:
+        if val == None or len(val) < self.sequence_length:
             return self.sequence_string[0]
         last_value = val[-self.sequence_length:]
         if (not self.rollover) and (last_value == self.last_item):
@@ -79,21 +79,21 @@ class SequenceGenerator(object):
 # Simple Sequence Functions
 #
 def increment_by_one(cv=None, lv=None):
-    if cv is None:
+    if cv == None:
         return 0
     return cv + 1
 
 def double(cv=None, lv=None):
-    if cv is None:
+    if cv == None:
         return 1
     return cv * 2
 
 def fib(cv=1, lv=0):
     """The fibonacci sequence, this incrementer uses the
     last value"""
-    if cv is None:
+    if cv == None:
         cv = 1
-    if lv is None:
+    if lv == None:
         lv = 0
     return cv + lv
 
@@ -136,24 +136,20 @@ class Sequence(object):
         self.last_value = None
         self.domain_name = domain_name
         self.id = id
-        if init_val is None:
-            init_val = fnc(init_val)
-
-        if self.id is None:
+        if self.id == None:
             import uuid
             self.id = str(uuid.uuid4())
+            if init_val == None:
+                init_val = fnc(init_val)
+            self.val = init_val
 
         self.item_type = type(fnc(None))
         self.timestamp = None
         # Allow us to pass in a full name to a function
-        if isinstance(fnc, basestring):
+        if type(fnc) == str:
             from boto.utils import find_class
             fnc = find_class(fnc)
         self.fnc = fnc
-
-        # Bootstrap the value last
-        if not self.val:
-            self.val = init_val
 
     def set(self, val):
         """Set the value"""
@@ -162,16 +158,16 @@ class Sequence(object):
         expected_value = []
         new_val = {}
         new_val['timestamp'] = now
-        if self._value is not None:
+        if self._value != None:
             new_val['last_value'] = self._value
             expected_value = ['current_value', str(self._value)]
         new_val['current_value'] = val
         try:
             self.db.put_attributes(self.id, new_val, expected_value=expected_value)
             self.timestamp = new_val['timestamp']
-        except SDBResponseError, e:
+        except SDBResponseError as e:
             if e.status == 409:
-                raise ValueError("Sequence out of sync")
+                raise ValueError( "Sequence out of sync" )
             else:
                 raise
 
@@ -179,13 +175,12 @@ class Sequence(object):
     def get(self):
         """Get the value"""
         val = self.db.get_attributes(self.id, consistent_read=True)
-        if val:
-            if 'timestamp' in val:
-                self.timestamp = val['timestamp']
-            if 'current_value' in val:
-                self._value = self.item_type(val['current_value'])
-            if "last_value" in val and val['last_value'] is not None:
-                self.last_value = self.item_type(val['last_value'])
+        if val and val.has_key('timestamp'):
+            self.timestamp = val['timestamp']
+        if val and val.has_key('current_value'):
+            self._value = self.item_type(val['current_value'])
+        if val.has_key("last_value") and val['last_value'] != None:
+            self.last_value = self.item_type(val['last_value'])
         return self._value
 
     val = property(get, set)
@@ -202,13 +197,13 @@ class Sequence(object):
     def _connect(self):
         """Connect to our domain"""
         if not self._db:
-            import boto
-            sdb = boto.connect_sdb()
             if not self.domain_name:
+                import boto
+                sdb = boto.connect_sdb()
                 self.domain_name = boto.config.get("DB", "sequence_db", boto.config.get("DB", "db_name", "default"))
             try:
                 self._db = sdb.get_domain(self.domain_name)
-            except SDBResponseError, e:
+            except SDBResponseError as e:
                 if e.status == 400:
                     self._db = sdb.create_domain(self.domain_name)
                 else:

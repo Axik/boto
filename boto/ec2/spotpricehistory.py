@@ -14,7 +14,7 @@
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
 # OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABIL-
 # ITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-# SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
 # WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
@@ -26,14 +26,13 @@ Represents an EC2 Spot Instance Request
 from boto.ec2.ec2object import EC2Object
 
 class SpotPriceHistory(EC2Object):
-
+    
     def __init__(self, connection=None):
-        super(SpotPriceHistory, self).__init__(connection)
+        EC2Object.__init__(self, connection)
         self.price = 0.0
         self.instance_type = None
         self.product_description = None
         self.timestamp = None
-        self.availability_zone = None
 
     def __repr__(self):
         return 'SpotPriceHistory(%s):%2f' % (self.instance_type, self.price)
@@ -47,8 +46,6 @@ class SpotPriceHistory(EC2Object):
             self.product_description = value
         elif name == 'timestamp':
             self.timestamp = value
-        elif name == 'availabilityZone':
-            self.availability_zone = value
         else:
             setattr(self, name, value)
 

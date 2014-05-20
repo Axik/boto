@@ -15,30 +15,26 @@
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
 # OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABIL-
 # ITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-# SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
 # WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
 
 """
-Represents an EC2 Elastic Block Store Snapshot
+Represents an EC2 Elastic IP Snapshot
 """
 from boto.ec2.ec2object import TaggedEC2Object
-from boto.ec2.zone import Zone
-
 
 class Snapshot(TaggedEC2Object):
-    AttrName = 'createVolumePermission'
-
+    
     def __init__(self, connection=None):
-        super(Snapshot, self).__init__(connection)
+        TaggedEC2Object.__init__(self, connection)
         self.id = None
         self.volume_id = None
         self.status = None
         self.progress = None
         self.start_time = None
         self.owner_id = None
-        self.owner_alias = None
         self.volume_size = None
         self.description = None
 
@@ -56,8 +52,6 @@ class Snapshot(TaggedEC2Object):
             self.start_time = value
         elif name == 'ownerId':
             self.owner_id = value
-        elif name == 'ownerAlias':
-            self.owner_alias = value
         elif name == 'volumeSize':
             try:
                 self.volume_size = int(value)
@@ -72,7 +66,7 @@ class Snapshot(TaggedEC2Object):
         self.progress = updated.progress
         self.status = updated.status
 
-    def update(self, validate=False, dry_run=False):
+    def update(self, validate=False):
         """
         Update the data associated with this snapshot by querying EC2.
 
@@ -83,80 +77,40 @@ class Snapshot(TaggedEC2Object):
                          raise a ValueError exception if no data is
                          returned from EC2.
         """
-        rs = self.connection.get_all_snapshots([self.id], dry_run=dry_run)
+        rs = self.connection.get_all_snapshots([self.id])
         if len(rs) > 0:
             self._update(rs[0])
         elif validate:
             raise ValueError('%s is not a valid Snapshot ID' % self.id)
         return self.progress
+    
+    def delete(self):
+        return self.connection.delete_snapshot(self.id)
 
-    def delete(self, dry_run=False):
-        return self.connection.delete_snapshot(self.id, dry_run=dry_run)
-
-    def get_permissions(self, dry_run=False):
-        attrs = self.connection.get_snapshot_attribute(
-            self.id,
-            self.AttrName,
-            dry_run=dry_run
-        )
+    def get_permissions(self):
+        attrs = self.connection.get_snapshot_attribute(self.id,
+                                                       attribute='createVolumePermission')
         return attrs.attrs
 
-    def share(self, user_ids=None, groups=None, dry_run=False):
+    def share(self, user_ids=None, groups=None):
         return self.connection.modify_snapshot_attribute(self.id,
-                                                         self.AttrName,
+                                                         'createVolumePermission',
                                                          'add',
                                                          user_ids,
-                                                         groups,
-                                                         dry_run=dry_run)
+                                                         groups)
 
-    def unshare(self, user_ids=None, groups=None, dry_run=False):
+    def unshare(self, user_ids=None, groups=None):
         return self.connection.modify_snapshot_attribute(self.id,
-                                                         self.AttrName,
+                                                         'createVolumePermission',
                                                          'remove',
                                                          user_ids,
-                                                         groups,
-                                                         dry_run=dry_run)
+                                                         groups)
 
-    def reset_permissions(self, dry_run=False):
-        return self.connection.reset_snapshot_attribute(
-            self.id,
-            self.AttrName,
-            dry_run=dry_run
-        )
+    def reset_permissions(self):
+        return self.connection.reset_snapshot_attribute(self.id, 'createVolumePermission')
 
-    def create_volume(self, zone, size=None, volume_type=None, iops=None,
-                      dry_run=False):
-        """
-        Create a new EBS Volume from this Snapshot
+class SnapshotAttribute:
 
-        :type zone: string or :class:`boto.ec2.zone.Zone`
-        :param zone: The availability zone in which the Volume will be created.
-
-        :type size: int
-        :param size: The size of the new volume, in GiB. (optional). Defaults to
-            the size of the snapshot.
-
-        :type volume_type: string
-        :param volume_type: The type of the volume. (optional).  Valid
-            values are: standard | io1.
-
-        :type iops: int
-        :param iops: The provisioned IOPs you want to associate with
-            this volume. (optional)
-        """
-        if isinstance(zone, Zone):
-            zone = zone.name
-        return self.connection.create_volume(
-            size,
-            zone,
-            self.id,
-            volume_type,
-            iops,
-            dry_run=dry_run
-        )
-
-
-class SnapshotAttribute(object):
     def __init__(self, parent=None):
         self.snapshot_id = None
         self.attrs = {}
@@ -168,12 +122,12 @@ class SnapshotAttribute(object):
         if name == 'createVolumePermission':
             self.name = 'create_volume_permission'
         elif name == 'group':
-            if 'groups' in self.attrs:
+            if self.attrs.has_key('groups'):
                 self.attrs['groups'].append(value)
             else:
                 self.attrs['groups'] = [value]
         elif name == 'userId':
-            if 'user_ids' in self.attrs:
+            if self.attrs.has_key('user_ids'):
                 self.attrs['user_ids'].append(value)
             else:
                 self.attrs['user_ids'] = [value]
@@ -183,4 +137,4 @@ class SnapshotAttribute(object):
             setattr(self, name, value)
 
 
-
+            

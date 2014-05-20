@@ -14,15 +14,13 @@
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
 # OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABIL-
 # ITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-# SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
 # WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
 #
 
-from .regioninfo import SDBRegionInfo
-from boto.regioninfo import get_regions
-
+from boto.sdb.regioninfo import SDBRegionInfo
 
 def regions():
     """
@@ -31,25 +29,28 @@ def regions():
     :rtype: list
     :return: A list of :class:`boto.sdb.regioninfo.RegionInfo` instances
     """
-    return get_regions(
-        'sdb',
-        region_cls=SDBRegionInfo
-    )
+    return [SDBRegionInfo(name='us-east-1',
+                          endpoint='sdb.amazonaws.com'),
+            SDBRegionInfo(name='eu-west-1',
+                          endpoint='sdb.eu-west-1.amazonaws.com'),
+            SDBRegionInfo(name='us-west-1',
+                          endpoint='sdb.us-west-1.amazonaws.com'),
+            SDBRegionInfo(name='ap-southeast-1',
+                          endpoint='sdb.ap-southeast-1.amazonaws.com')
+            ]
 
-
-def connect_to_region(region_name, **kw_params):
+def connect_to_region(region_name):
     """
-    Given a valid region name, return a
+    Given a valid region name, return a 
     :class:`boto.sdb.connection.SDBConnection`.
-
-    :type: str
-    :param region_name: The name of the region to connect to.
-
+    
+    :param str region_name: The name of the region to connect to.
+    
     :rtype: :class:`boto.sdb.connection.SDBConnection` or ``None``
     :return: A connection to the given region, or None if an invalid region
-             name is given
+        name is given
     """
     for region in regions():
         if region.name == region_name:
-            return region.connect(**kw_params)
+            return region.connect()
     return None

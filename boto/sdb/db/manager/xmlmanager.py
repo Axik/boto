@@ -14,7 +14,7 @@
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
 # OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABIL-
 # ITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-# SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
 # WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
@@ -24,10 +24,18 @@ from boto.sdb.db.key import Key
 from boto.sdb.db.model import Model
 from datetime import datetime
 from xml.dom.minidom import getDOMImplementation, parse, parseString, Node
+import base64
+
+import sys
+if sys.version_info.major >= 3:
+    basestring = str
+    base64_encodestring = base64.encodebytes
+else:
+    base64_encodestring = base64.encodestring
 
 ISO8601 = '%Y-%m-%dT%H:%M:%SZ'
 
-class XMLConverter(object):
+class XMLConverter:
     """
     Responsible for converting base Python types to format compatible with underlying
     database.  For SimpleDB, that means everything needs to be converted to a string
@@ -147,7 +155,7 @@ class XMLConverter(object):
     def encode_reference(self, value):
         if isinstance(value, basestring):
             return value
-        if value is None:
+        if value == None:
             return ''
         else:
             val_node = self.manager.doc.createElement("object")
@@ -179,7 +187,7 @@ class XMLConverter(object):
 
 
 class XMLManager(object):
-
+    
     def __init__(self, cls, db_name, db_user, db_passwd,
                  db_host, db_port, db_table, ddl_dir, enable_ssl):
         self.cls = cls
@@ -201,8 +209,7 @@ class XMLManager(object):
         self.enable_ssl = enable_ssl
         self.auth_header = None
         if self.db_user:
-            import base64
-            base64string = base64.encodestring('%s:%s' % (self.db_user, self.db_passwd))[:-1]
+            base64string = base64_encodestring('%s:%s' % (self.db_user, self.db_passwd))[:-1]
             authheader =  "Basic %s" % base64string
             self.auth_header = authheader
 
@@ -260,7 +267,7 @@ class XMLManager(object):
 
     def get_doc(self):
         return self.doc
-
+            
     def encode_value(self, prop, value):
         return self.converter.encode_prop(prop, value)
 
@@ -296,7 +303,7 @@ class XMLManager(object):
             prop = obj.find_property(prop_name)
             value = self.decode_value(prop, prop_node)
             value = prop.make_value_from_datastore(value)
-            if value is not None:
+            if value != None:
                 try:
                     setattr(obj, prop.name, value)
                 except:
@@ -321,11 +328,11 @@ class XMLManager(object):
             prop = cls.find_property(prop_name)
             value = self.decode_value(prop, prop_node)
             value = prop.make_value_from_datastore(value)
-            if value is not None:
+            if value != None:
                 props[prop.name] = value
         return (cls, props, id)
-
-
+        
+        
     def get_object(self, cls, id):
         if not self.connection:
             self._connect()
@@ -352,7 +359,7 @@ class XMLManager(object):
         query = str(self._build_query(cls, filters, limit, order_by))
         if query:
             url = "/%s?%s" % (self.db_name, urlencode({"query": query}))
-        else:
+        else: 
             url = "/%s" % self.db_name
         resp = self._make_request('GET', url)
         if resp.status == 200:
@@ -395,7 +402,7 @@ class XMLManager(object):
         return ' intersection '.join(parts)
 
     def query_gql(self, query_string, *args, **kwds):
-        raise NotImplementedError("GQL queries not supported in XML")
+        raise NotImplementedError( "GQL queries not supported in XML" )
 
     def save_list(self, doc, items, prop_node):
         items_node = doc.createElement('items')
@@ -471,7 +478,7 @@ class XMLManager(object):
         else:
             doc = parse(fp)
         return self.get_object_from_doc(cls, id, doc)
-
+    
     def unmarshal_props(self, fp, cls=None, id=None):
         """
         Same as unmarshalling an object, except it returns
@@ -495,11 +502,11 @@ class XMLManager(object):
 
     def get_key_value(self, obj, name):
         a = self.domain.get_attributes(obj.id, name)
-        if name in a:
+        if a.has_key(name):
             return a[name]
         else:
             return None
-
+    
     def get_raw_item(self, obj):
         return self.domain.get_item(obj.id)
 

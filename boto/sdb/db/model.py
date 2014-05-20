@@ -14,11 +14,12 @@
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
 # OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABIL-
 # ITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-# SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
 # WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
 
+from boto.sdb.db.manager import get_manager
 from boto.sdb.db.property import Property
 from boto.sdb.db.key import Key
 from boto.sdb.db.query import Query
@@ -31,10 +32,6 @@ class ModelMeta(type):
         super(ModelMeta, cls).__init__(name, bases, dict)
         # Make sure this is a subclass of Model - mainly copied from django ModelBase (thanks!)
         cls.__sub_classes__ = []
-
-        # Do a delayed import to prevent possible circular import errors.
-        from boto.sdb.db.manager import get_manager
-
         try:
             if filter(lambda b: issubclass(b, Model), bases):
                 for base in bases:
@@ -55,7 +52,7 @@ class ModelMeta(type):
             # 'Model' isn't defined yet, meaning we're looking at our own
             # Model class, defined below.
             pass
-
+        
 class Model(object):
     __metaclass__ = ModelMeta
     __consistent__ = False # Consistent is set off by default
@@ -70,13 +67,13 @@ class Model(object):
     @classmethod
     def kind(cls):
         return cls.__name__
-
+    
     @classmethod
     def _get_by_id(cls, id, manager=None):
         if not manager:
             manager = cls._manager
         return manager.get_object(cls, id)
-
+            
     @classmethod
     def get_by_id(cls, ids=None, parent=None):
         if isinstance(ids, list):
@@ -89,7 +86,7 @@ class Model(object):
 
     @classmethod
     def get_by_key_name(cls, key_names, parent=None):
-        raise NotImplementedError("Key Names are not currently supported")
+        raise NotImplementedError( "Key Names are not currently supported" )
 
     @classmethod
     def find(cls, limit=None, next_token=None, **params):
@@ -104,8 +101,8 @@ class Model(object):
 
     @classmethod
     def get_or_insert(key_name, **kw):
-        raise NotImplementedError("get_or_insert not currently supported")
-
+        raise NotImplementedError( "get_or_insert not currently supported" )
+            
     @classmethod
     def properties(cls, hidden=True):
         properties = []
@@ -157,7 +154,7 @@ class Model(object):
                 setattr(self, prop.name, prop.default_value())
             except ValueError:
                 pass
-        if 'manager' in kw:
+        if kw.has_key('manager'):
             self._manager = kw['manager']
         self.id = id
         for key in kw:
@@ -166,7 +163,7 @@ class Model(object):
                 # so if it fails we just revert to it's default value
                 try:
                     setattr(self, key, kw[key])
-                except Exception, e:
+                except Exception as e:
                     boto.log.exception(e)
 
     def __repr__(self):
@@ -174,7 +171,7 @@ class Model(object):
 
     def __str__(self):
         return str(self.id)
-
+    
     def __eq__(self, other):
         return other and isinstance(other, Model) and self.id == other.id
 
@@ -191,56 +188,10 @@ class Model(object):
             self._manager.load_object(self)
 
     def put(self, expected_value=None):
-        """
-        Save this object as it is, with an optional expected value
-
-        :param expected_value: Optional tuple of Attribute, and Value that
-            must be the same in order to save this object. If this
-            condition is not met, an SDBResponseError will be raised with a
-            Confict status code.
-        :type expected_value: tuple or list
-        :return: This object
-        :rtype: :class:`boto.sdb.db.model.Model`
-        """
         self._manager.save_object(self, expected_value)
-        return self
 
     save = put
-
-    def put_attributes(self, attrs):
-        """
-        Save just these few attributes, not the whole object
-
-        :param attrs: Attributes to save, key->value dict
-        :type attrs: dict
-        :return: self
-        :rtype: :class:`boto.sdb.db.model.Model`
-        """
-        assert(isinstance(attrs, dict)), "Argument must be a dict of key->values to save"
-        for prop_name in attrs:
-            value = attrs[prop_name]
-            prop = self.find_property(prop_name)
-            assert(prop), "Property not found: %s" % prop_name
-            self._manager.set_property(prop, self, prop_name, value)
-        self.reload()
-        return self
-
-    def delete_attributes(self, attrs):
-        """
-        Delete just these attributes, not the whole object.
-
-        :param attrs: Attributes to save, as a list of string names
-        :type attrs: list
-        :return: self
-        :rtype: :class:`boto.sdb.db.model.Model`
-        """
-        assert(isinstance(attrs, list)), "Argument must be a list of names of keys to delete."
-        self._manager.domain.delete_attributes(self.id, attrs)
-        self.reload()
-        return self
-
-    save_attributes = put_attributes
-
+        
     def delete(self):
         self._manager.delete_object(self)
 
@@ -270,7 +221,7 @@ class Model(object):
             return cls
         for sc in cls.__sub_classes__:
             r = sc.find_subclass(name)
-            if r is not None:
+            if r != None:
                 return r
 
 class Expando(Model):
@@ -294,4 +245,4 @@ class Expando(Model):
                 return value
         raise AttributeError
 
-
+    

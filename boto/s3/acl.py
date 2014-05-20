@@ -14,7 +14,7 @@
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
 # OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABIL-
 # ITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-# SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
 # WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
@@ -24,11 +24,10 @@ from boto.s3.user import User
 
 CannedACLStrings = ['private', 'public-read',
                     'public-read-write', 'authenticated-read',
-                    'bucket-owner-read', 'bucket-owner-full-control',
-                    'log-delivery-write']
+                    'bucket-owner-read', 'bucket-owner-full-control']
 
 
-class Policy(object):
+class Policy:
 
     def __init__(self, parent=None):
         self.parent = parent
@@ -74,7 +73,7 @@ class Policy(object):
         s += '</AccessControlPolicy>'
         return s
 
-class ACL(object):
+class ACL:
 
     def __init__(self, policy=None):
         self.policy = policy
@@ -88,8 +87,8 @@ class ACL(object):
                       email_address=email_address)
         self.grants.append(grant)
 
-    def add_user_grant(self, permission, user_id, display_name=None):
-        grant = Grant(permission=permission, type='CanonicalUser', id=user_id, display_name=display_name)
+    def add_user_grant(self, permission, user_id):
+        grant = Grant(permission=permission, type='CanonicalUser', id=user_id)
         self.grants.append(grant)
 
     def startElement(self, name, attrs, connection):
@@ -111,8 +110,8 @@ class ACL(object):
             s += grant.to_xml()
         s += '</AccessControlList>'
         return s
-
-class Grant(object):
+        
+class Grant:
 
     NameSpace = 'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"'
 
@@ -160,5 +159,5 @@ class Grant(object):
         s += '<Permission>%s</Permission>' % self.permission
         s += '</Grant>'
         return s
-
-
+        
+            
